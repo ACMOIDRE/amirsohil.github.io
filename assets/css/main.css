@@ -51,8 +51,7 @@ body {
 }
 
  
-
-
+ 
 ol, ul {
 	list-style: none;
 }
@@ -334,9 +333,9 @@ input, select, textarea {
 	}
 
 	code {
-		background: rgba(38, 54, 75, 0.322)
-		border-color: #eeeeee;
-	}
+    background: rgba(38, 54, 75, 0.322);
+    border-color: #eeeeee;
+		}
 
 	hr {
 		border-bottom-color: #eeeeee;
@@ -3246,6 +3245,7 @@ input, select, textarea {
 		z-index: 1;
 		overflow: hidden;
 	}
+ 
 
 		#wrapper > .bg {
 			position: absolute;
@@ -4737,3 +4737,38 @@ input, select, textarea {
 	width: 100%;
 	height: auto;
 }
+
+/*
+FORCE canvas to top background layer */
+#bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1; /* important */
+}
+
+#wrapper {
+  position: relative;
+  z-index: 1;
+}
+ 
+
+/* Kill Massively background system */
+body:before,
+body:after,
+#wrapper:before,
+#wrapper:after,
+#wrapper .bg {
+    display: none !important;
+}
+
+/* Ensure dark theme stays */
+body {
+    background: #0b0f14 !important;
+    color: #2e3031 !important;
+}
+
+/* Fix headings turning white incorrectly */
+h1, h2, h3, h4, h5, h6 {
+    color: #444444 !important;
+}
+
