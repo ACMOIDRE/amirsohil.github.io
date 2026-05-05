@@ -338,38 +338,115 @@ function collectObject(obj, sx, sy){
 }
 
 // ─── CLICK / TAP ─────────────────────────────────────────────────────────────
-const raycaster=new THREE.Raycaster(), clickMouse=new THREE.Vector2();
-function onCollect(e){
-  const b=canvas.getBoundingClientRect();
-  const cx=e.touches?e.touches[0].clientX:e.clientX;
-  const cy=e.touches?e.touches[0].clientY:e.clientY;
-  clickMouse.x= ((cx-b.left)/b.width) *2-1;
-  clickMouse.y=-((cy-b.top) /b.height)*2+1;
-  raycaster.far=100;
-  raycaster.params.Points=raycaster.params.Points||{};
-  raycaster.params.Points.threshold=0.5;
-  raycaster.params.Line={threshold:0.5};
-  raycaster.setFromCamera(clickMouse,camera);
-  const hits=raycaster.intersectObjects(objectGroup.children,true);
-  let hitObj=null;
-  if(hits.length>0){
-    let o=hits[0].object;
-    while(o.parent&&!spawnedObjects.includes(o)) o=o.parent;
-    if(spawnedObjects.includes(o)&&!o.userData.collected) hitObj=o;
+// const raycaster=new THREE.Raycaster(), clickMouse=new THREE.Vector2();
+// function onCollect(e){
+//   const b=canvas.getBoundingClientRect();
+//   const cx=e.touches?e.touches[0].clientX:e.clientX;
+//   const cy=e.touches?e.touches[0].clientY:e.clientY;
+//   clickMouse.x= ((cx-b.left)/b.width) *2-1;
+//   clickMouse.y=-((cy-b.top) /b.height)*2+1;
+//   raycaster.far=100;
+//   raycaster.params.Points=raycaster.params.Points||{};
+//   raycaster.params.Points.threshold=0.5;
+//   raycaster.params.Line={threshold:0.5};
+//   raycaster.setFromCamera(clickMouse,camera);
+//   const hits=raycaster.intersectObjects(objectGroup.children,true);
+//   let hitObj=null;
+//   if(hits.length>0){
+//     let o=hits[0].object;
+//     while(o.parent&&!spawnedObjects.includes(o)) o=o.parent;
+//     if(spawnedObjects.includes(o)&&!o.userData.collected) hitObj=o;
+//   }
+//   if(!hitObj){
+//     let minD=9999; const pv=new THREE.Vector3();
+//     spawnedObjects.forEach(o=>{
+//       if(o.userData.collected) return;
+//       pv.copy(o.position).project(camera);
+//       const dx=pv.x-clickMouse.x,dy=pv.y-clickMouse.y,d=dx*dx+dy*dy;
+//       if(d<0.12&&d<minD){minD=d;hitObj=o;}
+//     });
+//   }
+//   if(hitObj) collectObject(hitObj,cx,cy);
+// }
+// canvas.addEventListener('click',onCollect);
+// canvas.addEventListener('touchend',onCollect,{passive:true});
+
+// ─── CLICK / TAP (FIXED & RELIABLE) ─────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const clickMouse = new THREE.Vector2();
+
+function getClickPos(e) {
+  if (e.touches && e.touches.length > 0) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }
-  if(!hitObj){
-    let minD=9999; const pv=new THREE.Vector3();
-    spawnedObjects.forEach(o=>{
-      if(o.userData.collected) return;
+  return { x: e.clientX, y: e.clientY };
+}
+
+function onCollect(e) {
+  const { x, y } = getClickPos(e);
+
+  // Convert to NDC (FULL WINDOW, not canvas)
+  clickMouse.x = (x / window.innerWidth) * 2 - 1;
+  clickMouse.y = -(y / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(clickMouse, camera);
+
+  // 🔥 Increase tolerance
+  raycaster.params.Mesh = { threshold: 1.5 };
+  raycaster.params.Points = { threshold: 1.0 };
+  raycaster.far = 100;
+
+  const hits = raycaster.intersectObjects(objectGroup.children, true);
+
+  let hitObj = null;
+
+  // ✅ Resolve parent correctly
+  if (hits.length > 0) {
+    let o = hits[0].object;
+
+    while (o.parent && !spawnedObjects.includes(o)) {
+      o = o.parent;
+    }
+
+    if (spawnedObjects.includes(o) && !o.userData.collected) {
+      hitObj = o;
+    }
+  }
+
+  // ✅ STRONG fallback (screen distance)
+  if (!hitObj) {
+    let minD = Infinity;
+    const pv = new THREE.Vector3();
+
+    spawnedObjects.forEach(o => {
+      if (o.userData.collected) return;
+
       pv.copy(o.position).project(camera);
-      const dx=pv.x-clickMouse.x,dy=pv.y-clickMouse.y,d=dx*dx+dy*dy;
-      if(d<0.12&&d<minD){minD=d;hitObj=o;}
+
+      const dx = pv.x - clickMouse.x;
+      const dy = pv.y - clickMouse.y;
+      const d = dx * dx + dy * dy;
+
+      // 🔥 Increased hit area
+      if (d < 0.3 && d < minD) {
+        minD = d;
+        hitObj = o;
+      }
     });
   }
-  if(hitObj) collectObject(hitObj,cx,cy);
+
+  if (hitObj) {
+    collectObject(hitObj, x, y);
+  } else {
+    // Optional debug
+    // console.log("MISS");
+  }
 }
-canvas.addEventListener('click',onCollect);
-canvas.addEventListener('touchend',onCollect,{passive:true});
+
+// 🔥 Attach to window instead of canvas
+window.addEventListener('click', onCollect);
+window.addEventListener('touchend', onCollect, { passive: true });
+
 
 // ─── RESIZE ───────────────────────────────────────────────────────────────────
 window.addEventListener('resize',()=>{
@@ -428,7 +505,10 @@ function animate(){
     }
   });
 
-  // cursor trail — correct world position via unproject
+
+
+
+  // cursor trail — correct world position via unproject    ----------------------------
   const cw=ndcToWorld(mouseLerp.x,mouseLerp.y,TRAIL_Z);
   trailHistory.pop(); trailHistory.unshift(cw.clone());
   for(let i=0;i<TRAIL_LEN;i++){
